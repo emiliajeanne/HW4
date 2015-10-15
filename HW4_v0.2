@@ -1,0 +1,234 @@
+---
+title: "Assignment 4_Flores_v0.1"
+output: html_document
+---
+
+Question 2:Read in the data file, and using some of the R functions discussed in class (show your code below!), answer the following questions:
+
+A. How many cases/controls are in the dataset? 
+
+ANS A: Cases (disease): 498 / Controls (no disease): 502
+
+B. What variables are individually associated with the data at a significance level <0.05? Use a statistical test for each individual variable to identify the significant ones. Among the signficant ones, which would you prioritize for follow-up studies?
+
+ANS B: Logistic regression model: none of the variables are significant?! HOWEVER, when I break the analysis apart and look only at 1 variable at a time, some of them are significant.
+
+C. Create a plot to visualize how the single top significant individual variable differs between cases and controls.
+
+
+```{r eval=TRUE}
+library(RCurl)
+library(ggplot2)
+library(GGally)
+
+#read in the data
+my.url <- getURL("https://raw.githubusercontent.com/blancahimes/EPID600/master/DataFiles/assignment4_data.txt")
+sim.data <- read.table(text = my.url, header=TRUE)
+class(sim.data$status)
+#str(sim.data)
+
+#check for any missing values
+#allmisscols <- apply(sim.data, 2, function(x)all(is.na(x)))  
+#colswithallmiss <-names(allmisscols[allmisscols>0])    
+#print(colswithallmiss)
+
+#2A - table of cases and controls
+table(sim.data$status) #gives the number of cases/controls in the dataset
+
+#2B - Variables individually associated with the independent variables 
+sim.data.subset<-sim.data[1:10, 1:10]
+#sim.data.subset
+ggpairs(sim.data.subset)
+
+sim.data.glm <- glm(status~., data=sim.data, family=binomial(logit))
+summary(sim.data.glm)
+
+#For every one unit change in V1, the log odds of diease (case) decreases by .04.
+sim.data.glm.v1 <- glm(status~ v1, data=sim.data, family=binomial(logit))
+summary(sim.data.glm.v1)
+
+sim.data.glm.v2 <- glm(status~ v2, data=sim.data, family=binomial(logit))
+summary(sim.data.glm.v2)
+
+#2C
+```
+
+
+Question 3: Use hierarchical clustering with the independent variables (i.e. leave the status variable out) to find out whether you can arrive at the status label from the independent variables. Since we know there should be 2 categories, use this information in your analysis.
+
+ANS 3: For the small dataset, there are two groups. For the larger dataset, there appears to be a complete overlap between the 2 groups. It's very messy and I don't see any natural groupings. Is this typical????
+
+A. Create a dendrogram and use the original status variable to color the “leaves”.
+
+ANS 3A: plot from #3A below shows some groupings -- stil a lot of overlap though
+
+B. How many cases/controls are properly classified? 
+
+ANS3B: Examining data.cut, I expected there to be a clearer deliniation between the groups.Only 17 of the 23 cases were categorized alone
+
+C. What can you say about the relationship between the variables and status based on the results? 
+
+ANS 3C: As of right now, there is a small relationship...at least for the small dataset(40x40)
+
+```{r eval=TRUE}
+library(ggdendro)
+
+#3 Dendrogram without status
+#create a small sample of 40 records with 39 variables so that the plot will not be over crowded
+sim.data.small<-sim.data[1:40,2:40] # status variable not included in this subset
+#head(sim.data.small)
+d <- dist(as.matrix(sim.data.small))
+#class(sim.data)
+d <- dist(as.matrix(sim.data.small))
+hc <- hclust(d, method ="complete") 
+plot(hc) #dendrogram of smaller dataset
+
+# cut tree into 2 clusters
+rect.hclust(hc, k=2)
+groups <- cutree(hc, k=2)
+
+#create a small sample of all case-controls, but with 4 variables only 
+#sim.data.small<-sim.data[,2:5]
+#head(sim.data.small)
+#d <- dist(as.matrix(sim.data.small))
+#class(sim.data)
+#d <- dist(as.matrix(sim.data.small))
+#hc <- hclust(d, method ="complete") 
+#plot(hc)
+
+# cut tree into 2 clusters
+#rect.hclust(hc, k=2)
+#groups <- cutree(hc, k=2)
+
+#plot with ALL data is very overcrowded!!!
+#d <- dist(as.matrix(sim.data))
+#class(sim.data)
+#d <- dist(as.matrix(sim.data[, 2:40]))
+#hc <- hclust(d, method ="complete") 
+#plot(hc)
+
+# 3A & 3B - dendrogram with the original status variable to color the “leaves”.
+library(ggplot2)
+library(ggdendro)
+# Dataset 1 - now include status in this small dataset
+sim.data.small<-sim.data[1:40,1:40]
+d <- dist(as.matrix(sim.data.small)) #status included.
+hc.a <- hclust(d, method ="complete") 
+#plot(hc.a) #dendrogram
+plot(hc.a, hang = -1, labels=sim.data.small$status)
+
+rect.hclust(hc.a, k=2)
+data.cut <- cutree(hc.a, k=2) #Cut where there are 2 clusters
+table(sim.data.small$status, data.cut)
+
+# Dataset 2 - Still a small dataset, but this time all case-controls and only 4 variables
+#sim.data.small<-sim.data[,1:5]
+#d <- dist(as.matrix(sim.data.small)) #status included.
+#hc.a <- hclust(d, method ="complete") 
+#plot(hc.a, hang = -1, labels=sim.data.small$status)
+
+#rect.hclust(hc.a, k=2)
+#groups <- cutree(hc.a, k=2) #Cut where there are 2 clusters
+#table(sim.data.small$status, data.cut) #B
+
+
+#3 - another way to plot the data
+data.dend <- dendro_data(as.dendrogram(hc.a))
+labels <- label(data.dend)
+labels$status <- sim.data.small$status[as.numeric(levels(labels$label))]
+
+ggplot(segment(data.dend)) +
+    geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) +
+    geom_text(data=labels, aes(label=label, x=x, y=0, color=status), size=8)
+```
+
+QUESTION 4: Create predictive models of the status outcome using all independent variables simultaneously in a single model with (1) Logistic regression and (2) Random forests (i.e. you will have one logistic regression model and one random forest model). Run the random forest using the same parameters used in class (i.e. number of trees = 100)
+
+A. What are the significant variables in the logistic regression?
+
+ANS 4A: I Got this warning messages: 1: glm.fit: algorithm did not converge 2: glm.fit: fitted probabilities numerically 0 or 1 occurred. After googling it, the most satisfactory explanation I found is that there is separation in the data... Apparently there are NO significant variables (p-value > 0.05 for all predictor variables)??!! 
+
+B. What are the most important predictors in the random forest, according to gini importance scores (i.e. MeanDecreaseGini)?
+
+ANS 4B: V1, V23, V50, and V100 all have relatively low Gini scores (i.e. higher descrease in Gini), which means that these predictor variables plays a greater role in partitioning the simulated data into the defined statuses (case vs control).
+
+C. For each model, check the predictive accuracy using the training data as well as via 10-fold cross-validation by reporting the corresponding AUC and creating ROC plots. Note that there will be four tests of predictive accuracy. What model was better at predicting status?
+
+ANS 4C: overall, it appears that the random tree model was slightly better at predicting status, although both models were very close to 1.
+
+cv.glm returned a delta value of 0.1978213, 0.1977731, where the fist component of the vector is the raw cross-validation estimate of prediction error. The second component is the adjusted cross-validation estimate. How can I use this information?? 
+
+GLM, the AUC = 0.9355, 95% CI: 0.92-0.9511.
+
+Random tree model, the AUC = 0.940, with a 95% CI: 0.9274-0.9539. This model is slightly more accurate compared to the glm, but both have a fantastic accuracy (if this result can be believed...).
+
+D. How do the AUCs for the random forest compare to the internal out-of-bag error rate estimate reported by the randomForest function? Why might there be a difference?
+
+```{r eval=TRUE}
+library(GGally)
+library(ggplot2)
+library(dplyr)
+
+plot(sim.data.small[1:5, 1:5]) #Error in plot.new:figire margins too large -- need bigger monitor??
+
+#4A - logistic regression
+sim.data.glm <- glm(status~., data=sim.data, family=binomial(logit))
+summary(sim.data.glm)
+glm.pred <- predict(sim.data.glm, sim.data, type="response")
+
+#4B - random forest
+library(randomForest)
+sim.data.rf <- randomForest(status~., data=sim.data, ntree=100, importance=TRUE)
+sim.data.rf
+sim.data.rf$importance #gives the gini scores
+sim.data.rf.pred <- predict(sim.data.rf, sim.data, type="prob")
+head(sim.data.rf.pred)
+
+#4C- Check of predictive accuracy using the training data as well as via 10-fold cross-validation
+library(boot)
+sim.data.cv.glm <- cv.glm(sim.data, sim.data.glm, K=10)
+summary(sim.data.cv.glm)
+sim.data.cv.glm$delta #cross-validation estimate of prediction error
+
+#K-Fold Cross Validation for both glm and random trees
+N = nrow(sim.data)
+N
+K = 10
+set.seed(1234)
+s = sample(1:K, size=N, replace=T)
+pred_outputs.glm <- vector(mode="numeric", length=N)
+pred_outputs.glm
+pred_outputs.rf <- vector(mode="numeric", length=N)
+obs_outputs <- vector(mode="numeric", length=N)
+offset <- 0
+str(sim.data)
+
+for(i in 1:K){
+    train <- filter(sim.data, s != i)
+    test <- filter(sim.data, s == i)
+    obs_outputs[1:length(s[s==i]) + offset] <- test$status
+    #GLM train/test
+    glm <- glm(status~., data=train, family=binomial(logit))
+    glm.pred.curr <- predict(glm, test, type="response")
+    pred_outputs.glm[1:length(s[s==i]) + offset] <- glm.pred.curr
+
+    #RF train/test
+    rf <- randomForest(status~., data=train, ntree=100)
+    rf.pred.curr <- predict(rf, newdata=test, type="prob") 
+    pred_outputs.rf[1:length(s[s==i]) + offset] <- rf.pred.curr[,2]
+
+    offset <- offset + length(s[s==i])
+}
+
+#Creating ROC curves and AUC Values to report on predictive accuracy
+library(pROC)
+roc(obs_outputs, pred_outputs.glm, ci=TRUE) #ROC for vaidation data: AUC and CI for glm
+plot.roc(sim.data$status, glm.pred, ci=TRUE) # ROC plot based on data used to train/construct the model
+plot.roc(obs_outputs, pred_outputs.glm, ci=TRUE, col="blue", add=TRUE) #based on data used to validate (test) the model
+
+roc(obs_outputs, pred_outputs.rf, ci=TRUE) #ROC for vaidation data: AUC and CI for RF
+plot.roc(sim.data$status, sim.data.rf.pred[, 2], col="darkgreen") #based on data used to train/construct the model
+plot.roc(obs_outputs, pred_outputs.rf, ci=TRUE, col="red", add=TRUE) #based on data used to validate (test) the model
+
+legend("bottomright", legend=c("GLM Training", "GLM Cross-Validation", "RF Training", "RF Cross-Validation"), col=c("black", "pink", "darkgreen", "red"), lwd=2)
+```
